@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore;
 using WebApiSource.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System;
+using Microsoft.AspNetCore.Authorization;
 
 namespace WebApiSource
 {
@@ -22,18 +25,36 @@ namespace WebApiSource
         
         public void ConfigureServices(IServiceCollection services)
         {
-            services.Configure<CookiePolicyOptions>(options =>
-            {        
-                options.CheckConsentNeeded = context => true;
-                options.MinimumSameSitePolicy = SameSiteMode.None;
+            SigningConfigurations signingConfigurations = new SigningConfigurations();
+            TokenConfigurations tokenConfigurations = new TokenConfigurations(Configuration);
+            services.AddSingleton(signingConfigurations);
+            services.AddSingleton(tokenConfigurations);
+            services.AddAuthentication(authOptions =>
+            {
+                authOptions.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                authOptions.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(bearerOptions =>
+            {                
+                bearerOptions.TokenValidationParameters.IssuerSigningKey = signingConfigurations.Key;
+                bearerOptions.TokenValidationParameters.ValidAudience = tokenConfigurations.Audience;
+                bearerOptions.TokenValidationParameters.ValidIssuer = tokenConfigurations.Issuer;
+                bearerOptions.TokenValidationParameters.ValidateIssuerSigningKey = true;
+                bearerOptions.TokenValidationParameters.ValidateLifetime = true;
+                bearerOptions.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
             });
-                        
-            services.AddDbContext<ApplicationDbContext>(a => a.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddDefaultIdentity<IdentityUser>()
-                .AddDefaultUI(UIFramework.Bootstrap4)
-                .AddEntityFrameworkStores<ApplicationDbContext>();
-
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            services.AddAuthorization(auth =>
+            {
+                auth.AddPolicy("Bearer", new AuthorizationPolicyBuilder()
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme‌​)
+                    .RequireAuthenticatedUser()
+                    .Build());
+            });
+            services.AddDbContext<ApplicationDbContext>(a => a.UseSqlite("Data Source=c:/Temp/blogging.db"));
+            services.AddDefaultIdentity<IdentityUser>().AddDefaultUI(UIFramework.Bootstrap4).AddEntityFrameworkStores<ApplicationDbContext>();
+            services.AddCors();
+            services.AddMvc()
+                .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
 
         
@@ -49,12 +70,14 @@ namespace WebApiSource
                 app.UseExceptionHandler("/Home/Error");                
                 app.UseHsts();
             }
-
-            app.UseHttpsRedirection();
-            app.UseStaticFiles();
-            app.UseCookiePolicy();
-
-            app.UseAuthentication();
+                                    
+            app.UseCors(x =>
+            {
+                x.AllowAnyHeader();
+                x.AllowAnyMethod();
+                x.AllowAnyOrigin();
+                x.AllowCredentials();                
+            });
 
             app.UseMvc(routes =>
             {
