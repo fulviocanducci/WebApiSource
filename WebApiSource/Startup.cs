@@ -11,6 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System;
 using Microsoft.AspNetCore.Authorization;
+using System.IO;
+using Microsoft.AspNetCore.Hosting.Server;
 
 namespace WebApiSource
 {
@@ -50,14 +52,12 @@ namespace WebApiSource
                     .RequireAuthenticatedUser()
                     .Build());
             });
-            services.AddDbContext<ApplicationDbContext>(a => a.UseSqlite("Data Source=c:/Temp/blogging.db"));
+            
+            services.AddDbContext<ApplicationDbContext>(a => a.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
             services.AddDefaultIdentity<IdentityUser>().AddDefaultUI(UIFramework.Bootstrap4).AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddCors();
-            services.AddMvc()
-                .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            services.AddCors().AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);            
         }
-
-        
+                
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             if (env.IsDevelopment())
